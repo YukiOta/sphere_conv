@@ -41,9 +41,11 @@ def im2col(input_data, filter_h, filter_w, stride=1, pad=0):
     -------
     col : 2次元配列
     """
-    input_data = np.random.randn(10, 3, 28, 28)
-    input_data.shape
-    filter_h, filter_w, stride, pad = (3, 3, 1, 1)
+# input_data = np.random.randn(10, 3, 28, 28)  # 我が足した
+# input_data.shape  # 我が足した
+# filter_h, filter_w, stride, pad = (3, 3, 1, 1)  # 我が足した
+# img.shape
+# img[:, :, 0:28:1, 0:28:1].shape
 
     N, C, H, W = input_data.shape
     out_h = (H + 2*pad - filter_h)//stride + 1
@@ -59,7 +61,7 @@ def im2col(input_data, filter_h, filter_w, stride=1, pad=0):
             col[:, :, y, x, :, :] = img[:, :, y:y_max:stride, x:x_max:stride]
 
     col = col.transpose(0, 4, 5, 1, 2, 3).reshape(N*out_h*out_w, -1)
-
+col.shape
     return col
 
 

@@ -274,6 +274,7 @@ def tessellation(
             pos=pos, point=(area, j_a, k_a+i), p_list=points,
             img_sphere=img_sphere, make_img_array=True
         )
+
         check_hemisphere(
             pos=pos, point=(area, j_b-i, k_b+i), p_list=points,
             img_sphere=img_sphere, make_img_array=True
@@ -376,35 +377,47 @@ def check_hemisphere(pos, point, p_list, img_sphere, make_img_array=True):
         return
 
 
-def find_neighbor(point=(1, 1, 2)):
+def find_neighbor(point=(1, 1, 2), coord=False, level=1):
     """注目点の近傍を持ってくる
     Parameters
     ----------
     point : 注目する点 (area, j ,k)
+
+    return
+    ----------
+    neighbor : neighborの曲座標
+    neighbor_coord : neigborの球面座標
     """
     area, j_p, k_p = check_neighbor(point=point)
     neighbor = []
+    neighbor_coord = []
     neighbor_list = [
-        (area, j_p, k_p+1),
-        (area, j_p+1, k_p),
-        (area, j_p+1, k_p-1),
-        (area, j_p, k_p-1),
-        (area, j_p-1, k_p),
         (area, j_p-1, k_p+1),
+        (area, j_p-1, k_p),
+        (area, j_p, k_p-1),
+        (area, j_p+1, k_p-1),
+        (area, j_p+1, k_p),
+        (area, j_p, k_p+1)
     ]
     if (j_p, k_p) == (0, 1):  # zenith
         for i in range(1, 6):
             neighbor.append(pos[i][1][1])
+            neighbor_coord.append((i, 1, 1))
     elif (j_p, k_p) == (Q, 2*Q+1):  # nadir
         for i in range(1, 6):
             neighbor.append(pos[i][Q][2*Q])
+            neighbor_coord.append((i, Q, 2*Q))
     else:
         for point in neighbor_list:
             area, j_nb, k_nb = point
             area, j_nb, k_nb = check_neighbor(point=(area, j_nb, k_nb))
             neighbor.append(pos[area][j_nb][k_nb])
+            neighbor_coord.append((area, j_nb, k_nb))
 
-    return neighbor
+    if coord is True:
+        return neighbor, neighbor_coord
+    else:
+        return neighbor
 
 
 def check_neighbor(point=(1, 2, 1)):
@@ -461,13 +474,15 @@ def make_2d_array(pos_3d, Q):
     R_L = 3*Q
     i_2d, j_2d = (3*Q, 5*Q)
     pos_2d = np.zeros((i_2d+1, j_2d+1, 2))
+    pos_2d_coord = np.zeros((i_2d+1, j_2d+1, 3), dtype=np.int)
 
     for i in range(R_L+1):
         if i == 0:  # 1
             pos_2d[i][0] = pos_3d[1][0][1]
+            pos_2d_coord[i][0] = (1, 0, 1)
         elif i <= Q:  # 2
             j_p, k_p = (i, 1)
-            for j in range(5*i):
+            for j in range(5*Q):
                 point = j % i
                 if j <= i-1:
                     pos_2d[i][j] = pos_3d[1][j_p-point][k_p+point]
@@ -486,14 +501,20 @@ def make_2d_array(pos_3d, Q):
                 point = j % Q
                 if j <= Q-1:
                     pos_2d[i][j] = pos_3d[1][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (1, j_p-point, k_p+point)
                 elif j <= 2*Q-1:
                     pos_2d[i][j] = pos_3d[2][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (2, j_p-point, k_p+point)
                 elif j <= 3*Q-1:
                     pos_2d[i][j] = pos_3d[3][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (3, j_p-point, k_p+point)
                 elif j <= 4*Q-1:
                     pos_2d[i][j] = pos_3d[4][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (4, j_p-point, k_p+point)
                 elif j <= 5*Q-1:
                     pos_2d[i][j] = pos_3d[5][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (5, j_p-point, k_p+point)
+
         elif i < R_L:
             i_ = R_L - i
             j_p, k_p = (Q, 2*Q-i_)
@@ -501,18 +522,24 @@ def make_2d_array(pos_3d, Q):
                 point = j % i_
                 if j <= i_-1:
                     pos_2d[i][j] = pos_3d[1][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (1, j_p-point, k_p+point)
                 elif j <= 2*i_-1:
                     pos_2d[i][j] = pos_3d[2][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (2, j_p-point, k_p+point)
                 elif j <= 3*i_-1:
                     pos_2d[i][j] = pos_3d[3][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (3, j_p-point, k_p+point)
                 elif j <= 4*i_-1:
                     pos_2d[i][j] = pos_3d[4][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (4, j_p-point, k_p+point)
                 elif j <= 5*i_-1:
                     pos_2d[i][j] = pos_3d[5][j_p-point][k_p+point]
+                    pos_2d_coord[i][j] = (5, j_p-point, k_p+point)
         elif i == R_L:
             pos_2d[i][0] = pos_3d[1][Q][2*Q+1]
+            pos_2d_coord[i][0] = (1, Q, 2*Q+1)
 
-    return pos_2d
+    return pos_2d, pos_2d_coord
 
 
 def make_2d_picture(pos_2d, r_pic, Q, im_in):
@@ -524,7 +551,8 @@ def make_2d_picture(pos_2d, r_pic, Q, im_in):
     for channel in range(3):
         for i in range(R_L+1):
             if i == 0:  # 1
-                im_out[i, 0, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+                for j in range(5):
+                    im_out[i, j, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
             elif i <= Q:  # 2
                 for j in range(5*i):
                     im_out[i, j, channel] = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
@@ -541,7 +569,113 @@ def make_2d_picture(pos_2d, r_pic, Q, im_in):
                 if pos_2d[i][0][0] <= np.pi/2:
                     im_out[i, 0, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
 
+    return im_out[:int(im_out.shape[0]/2), :, :]
+
+
+def make_2d_center_picture(pos_2d, r_pic, Q, im_in):
+
+    cols, rows = (pos_2d.shape[1], pos_2d.shape[0])
+    im_out = np.zeros((rows, cols, 3), np.uint8)
+
+    R_L = 3*Q
+    for channel in range(3):
+        for i in range(R_L+1):
+            if i == 0:  # 1
+                index = int(5*Q / 2 - 1)
+                im_out[i, index, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i <= Q:  # 2
+                if i % 2 == 0:
+                    index = int((5*Q - 5*i) / 2)
+                else:
+                    index = int((5*Q - 5*i - 1) / 2)
+                for j in range(5*i):
+                    im_out[i, index+j, channel] = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i <= Q*2:  # 3
+                if pos_2d[i][0][0] <= np.pi/2:
+                    for j in range(5*Q):
+                        im_out[i, j, channel] = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i < R_L:
+                if pos_2d[i][0][0] <= np.pi/2:
+                    i_ = R_L - i
+                    for j in range(5*i_):
+                        im_out[i, j, channel] = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i == R_L:
+                if pos_2d[i][0][0] <= np.pi/2:
+                    im_out[i, 0, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+
     return im_out
+
+
+def make_2d_round_picture(pos_2d, r_pic, Q, im_in):
+    """画像に途切れる部分が内容に，画素値を，行において繰り返す関数
+    Parameters
+    ----------
+    """
+    cols, rows = (pos_2d.shape[1], pos_2d.shape[0])
+    im_out = np.zeros((rows, cols-1, 3), np.uint8)
+
+    R_L = 3*Q
+    for channel in range(3):
+        for i in range(R_L+1):
+            value_tmp = []
+            if i == 0:  # 1
+                im_out[i, :, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i <= Q:  # 2
+                if i % 2 == 0:
+                    index = int((5*Q - 5*i) / 2)
+                else:
+                    index = int((5*Q - 5*i - 1) / 2)
+                for j in range(5*i):
+                    tmp = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+                    value_tmp.append(tmp)
+                for k in range(5*i+index+1):
+                    if index+k < 80:
+                        im_out[i, index+k, channel] = value_tmp[k % (5*i)]
+                    if index-k >= 0:
+                        im_out[i, index-k, channel] = value_tmp[4-((k-1) % (5*i))]
+            elif i <= Q*2:  # 3
+                if pos_2d[i][0][0] <= np.pi/2:
+                    for j in range(5*Q):
+                        im_out[i, j, channel] = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i < R_L:
+                if pos_2d[i][0][0] <= np.pi/2:
+                    i_ = R_L - i
+                    for j in range(5*i_):
+                        im_out[i, j, channel] = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i == R_L:
+                if pos_2d[i][0][0] <= np.pi/2:
+                    im_out[i, 0, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+
+    return im_out[:int(im_out.shape[0]/2), :, :]
+
+
+def make_2d_neighbor_considered_picture(pos_2d, pos_2d_coord, r_pic, Q, im_in):
+    """画像に途切れる部分が内容に，find_neighborを用いて，一つ下の列から
+    画素値を補間
+    Parameters
+    ----------
+    pos_2d_coord : 2次元配列の座標に対する，(area, i, j)が格納されてる
+    neib_coord[1] : 対象とするpointの右上の点
+    """
+    cols, rows = (pos_2d.shape[1], pos_2d.shape[0])
+    im_out = np.zeros((rows, cols-1, 3), np.uint8)
+
+    for channel in range(3):
+        for i in reversed(range(Q*2+1)):
+            if i == 0:  # 1
+                im_out[i, :, channel] = cal_value(channel, position=(i, 0), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+            elif i <= Q:  # 2
+                for j in range(5*Q):
+                    neib_pos, neib_coord = find_neighbor(point=pos_2d_coord[i+1, j], coord=True)
+                    area_, i_, j_ = neib_coord[1]
+                    pos_2d_coord[i, j] = neib_coord[1]
+                    im_out[i, j, channel] = img_sphere[channel, area_, i_, j_]
+            elif i <= Q*2:  # 3
+                if pos_2d[i][0][0] <= np.pi/2:
+                    for j in range(5*Q):
+                        im_out[i, j, channel] = cal_value(channel, position=(i, j), r_pic=r_pic, im_in=im_in, pos_2d=pos_2d)
+    return im_out[:int(im_out.shape[0]/2), :, :]
+
 
 
 def cal_value(channel, position, r_pic, im_in, pos_2d):
@@ -732,37 +866,58 @@ area : area
 nb_point=(area, i, j) : 指定すれば，指定した点の周りの近傍を色付けして出力する
 r : 魚眼画像の円部分の半径である．
 """
-a, b, area, i, j = (30, 30, 1, 7, 2)
+a, b, area, i, j = (30, 30, 1, Q, 1)
 scatter3d(filename='hemi_%d_%d_%d_%d%d%d.png' % (r, a, b, area, i, j), view=(a, b), nb_point=(area, i, j), r=r_pic)
 scatter3d(filename='hemi_%d_%d_%d_%d%d%d.png' % (r, a, b, area, i, j), view=(a, b), nb_point=None, r=r_pic)
 
 """球面上に配置した点の座標から，球面画像の作成
 """
-pos_2d = make_2d_array(pos_3d=pos, Q=Q)
+pos_2d, pos_2d_coord = make_2d_array(pos_3d=pos, Q=Q)
 im = make_2d_picture(pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
+im_center = make_2d_round_picture(pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
+im_consider = make_2d_neighbor_considered_picture(pos_2d_coord=pos_2d_coord, pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
+
+plt.figure()
+plt.imshow(im_center)
+# plt.savefig(SAVE_DIR+"test_rounf.png")
+plt.show()
+plt.figure()
+plt.imshow(im_consider)
+# plt.savefig(SAVE_DIR+"test_rounf.png")
+plt.show()
 
 
 plt.figure()
 plt.imshow(im)
-plt.savefig("test_2.png")
 plt.show()
-
 
 plt.figure()
 plt.imshow(im_in)
 plt.show()
+plt.clf()
+img_sphere[:, 1, 1, 1]
+
 
 
 ###########################
 len(pos)
-find_neighbor(point=(1, Q, 1))
+neib_pos, neib_coord = find_neighbor(point=(1, 1, 2), coord=True)
+pos[1][1][2]
+neib_pos
+neib_coord
+im_ota = np.zeros((3, 3, 3), np.uint8)
+im_ota[1, 2, :] = img_sphere[:, 2, 2, 1]
+im_ota[2, 1, :] = img_sphere[:, 1, 1, 3]
+im_ota[2, 0, :] = img_sphere[:, 1, 2, 2]
+im_ota[1, 0, :] = img_sphere[:, 1, 2, 1]
+im_ota[0, 0, :] = img_sphere[:, 1, 1, 1]
+im_ota[0, 1, :] = img_sphere[:, 2, 1, 1]
+im_ota[1, 1, :] = img_sphere[:, 1, 1, 2]
 
-img_sphere.shape
-
-
-
-
-
+plt.clf()
+plt.figure()
+plt.imshow(im_ota)
+plt.show()
 
 
 
