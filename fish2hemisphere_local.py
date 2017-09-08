@@ -752,172 +752,135 @@ def bilinear_interpolate(im, x, y):
 
     return wa*Ia + wb*Ib + wc*Ic + wd*Id
 
+def make_considered_picture(img, level):
+    """Parameters
+    r : 分割レベル
+    Q : 平行四辺形の短辺における点の数．座標にもなる．
+    i : 平行四辺形 (area) の数 (に，実装の都合上+1してる)
+    j : 平行四辺形の短辺の座標の上限 (に，実装の都合上+1してる)
+    k : 平行四辺形の長辺の座標の上限 (に，実装の都合上+1してる)
+    kai : bc方向(円周方向)の単位角度 (論文参照)
+    tau : ab方向(天頂から天底方向)の単位角度
+    img_sphere : 球面配列に画素値が入るような配列 (3, i, j, k)
+    """
+    global r_pic, im_in, r, Q, i, j, k, kai, tau, img_sphere, pos, points
+    global point_vertex
+    r = level
+    Q = 2**r
+    i = 5 + 1
+    j = Q + 1 + 1
+    k = 2*Q + 1 + 1
+    kai = 2 * np.pi / 5
+    tau = np.arctan(2)
+    img_sphere = np.zeros((3, i, j, k))
 
-"""Parameters
-r : 分割レベル
-Q : 平行四辺形の短辺における点の数．座標にもなる．
-i : 平行四辺形 (area) の数 (に，実装の都合上+1してる)
-j : 平行四辺形の短辺の座標の上限 (に，実装の都合上+1してる)
-k : 平行四辺形の長辺の座標の上限 (に，実装の都合上+1してる)
-kai : bc方向(円周方向)の単位角度 (論文参照)
-tau : ab方向(天頂から天底方向)の単位角度
-img_sphere : 球面配列に画素値が入るような配列 (3, i, j, k)
-"""
-r = 4
-Q = 2**r
-i = 5 + 1
-j = Q + 1 + 1
-k = 2*Q + 1 + 1
-kai = 2 * np.pi / 5
-tau = np.arctan(2)
-img_sphere = np.zeros((3, i, j, k))
+    """画像の読み込み
+    PILを使ってImage.open
+    ここでは計算の不可を少なくするため，(100, 100)にリサイズしている
 
-"""画像の読み込み
-PILを使ってImage.open
-ここでは計算の不可を少なくするため，(100, 100)にリサイズしている
-
-r_pic : 魚眼画像の半径 (画像がある部分)
-"""
-im_in = Image.open("../1data/test_image/cloud_half.png")
-im_in = im_in.resize((100, 100))
-im_in = np.array(im_in)
-r_pic = int(im_in.shape[0]/2)
+    r_pic : 魚眼画像の半径 (画像がある部分)
+    """
+    # im_in = Image.open("../1data/test_image/cloud_half.png")
+    # im_in = im_in.resize((100, 100))
+    # im_in = np.array(im_in)
+    im_in = img
+    r_pic = int(im_in.shape[0]/2)
 
 
-"""球面座標を保持するリストの定義
-pos[area][短辺座標][長辺座標]
+    """球面座標を保持するリストの定義
+    pos[area][短辺座標][長辺座標]
 
-Parameters
-----------
-pos[i][j][k][0] : ido theta [0, pi]
-pos[i][j][k][1] : keido phi [0, 2*pi]
-"""
-pos = np.zeros((i, j, k, 2))
-pos[1][0][1] = (0, 0)  # a
-pos[1][Q][1] = (tau, 0)  # b
-pos[1][0][Q+1] = (tau, kai)  # c
-pos[1][Q][Q+1] = (np.pi - tau, kai / 2)  # d
-pos[1][0][2*Q+1] = (np.pi - tau, kai * 3 / 2)  # e
-pos[1][Q][2*Q+1] = (np.pi, 0)  # f
+    Parameters
+    ----------
+    pos[i][j][k][0] : ido theta [0, pi]
+    pos[i][j][k][1] : keido phi [0, 2*pi]
+    """
+    pos = np.zeros((i, j, k, 2))
+    pos[1][0][1] = (0, 0)  # a
+    pos[1][Q][1] = (tau, 0)  # b
+    pos[1][0][Q+1] = (tau, kai)  # c
+    pos[1][Q][Q+1] = (np.pi - tau, kai / 2)  # d
+    pos[1][0][2*Q+1] = (np.pi - tau, kai * 3 / 2)  # e
+    pos[1][Q][2*Q+1] = (np.pi, 0)  # f
 
-"""点のリスト
-points : 分割された点を放り込んでいく
-point_vertex : 頂点の座標を放り込んでいく
-vertex_list : area1の球面座標は手打ちでいれている (初期値的なね)
-"""
-points = []
-point_vertex = []
-vertex_list = [
-    (1, 0, 1),
-    (1, Q, 1),
-    (1, 0, Q+1),
-    (1, Q, Q+1),
-    (1, 0, 2*Q+1),
-    (1, Q, 2*Q+1),
-]
+    """点のリスト
+    points : 分割された点を放り込んでいく
+    point_vertex : 頂点の座標を放り込んでいく
+    vertex_list : area1の球面座標は手打ちでいれている (初期値的なね)
+    """
+    points = []
+    point_vertex = []
+    vertex_list = [
+        (1, 0, 1),
+        (1, Q, 1),
+        (1, 0, Q+1),
+        (1, Q, Q+1),
+        (1, 0, 2*Q+1),
+        (1, Q, 2*Q+1),
+    ]
 
-"""北半球にある点群だけを取り出してくる
-# vertex : こっちでは，area1を計算してる
-# ALL vertexes of icosahedron : こっちでは，全ての面を計算する
-"""
-# vertex
-for point in vertex_list:
-    area, j_v, k_v = point
-    check_hemisphere(
-        pos=pos,
-        point=(area, j_v, k_v), p_list=point_vertex,
-        img_sphere=img_sphere, make_img_array=True
-    )
-
-# ALL vertexes of icosahedron
-for point in vertex_list:
-    area, j_v, k_v = point
-    for i in range(1, 5):
-        pos[i+1][j_v][k_v] = cal_angle(pos[i][j_v][k_v])
+    """北半球にある点群だけを取り出してくる
+    # vertex : こっちでは，area1を計算してる
+    # ALL vertexes of icosahedron : こっちでは，全ての面を計算する
+    """
+    # vertex
+    for point in vertex_list:
+        area, j_v, k_v = point
         check_hemisphere(
             pos=pos,
-            point=(i+1, j_v, k_v), p_list=point_vertex,
+            point=(area, j_v, k_v), p_list=point_vertex,
             img_sphere=img_sphere, make_img_array=True
         )
 
-"""平行四辺形の分割
-基本的に，areaの値以外変えていない
-Parameters
-----------
-area : どの平行四辺形か
-a-f : 頂点の座標を指定する
+    # ALL vertexes of icosahedron
+    for point in vertex_list:
+        area, j_v, k_v = point
+        for i in range(1, 5):
+            pos[i+1][j_v][k_v] = cal_angle(pos[i][j_v][k_v])
+            check_hemisphere(
+                pos=pos,
+                point=(i+1, j_v, k_v), p_list=point_vertex,
+                img_sphere=img_sphere, make_img_array=True
+            )
 
-returnは無いが，暗示的に先ほど定義したpointsリストに座標を放り込んでいる
-"""
-for i in range(1, 6):
-    tessellation(area=i, a=(0, 1), b=(Q, 1), c=(0, Q+1), d=(Q, Q+1), e=(0, 2*Q+1), f=(Q, 2*Q+1))
-    print(len(points))
+    """平行四辺形の分割
+    基本的に，areaの値以外変えていない
+    Parameters
+    ----------
+    area : どの平行四辺形か
+    a-f : 頂点の座標を指定する
 
-"""これは実験的な，area1のみの分割に対応する
-"""
-# tessellation(area=1, a=(0, 1), b=(Q, 1), c=(0, Q+1), d=(Q, Q+1), e=(0, 2*Q+1), f=(Q, 2*Q+1))
+    returnは無いが，暗示的に先ほど定義したpointsリストに座標を放り込んでいる
+    """
+    for i in range(1, 6):
+        tessellation(area=i, a=(0, 1), b=(Q, 1), c=(0, Q+1), d=(Q, Q+1), e=(0, 2*Q+1), f=(Q, 2*Q+1))
+        # print(len(points))
 
-"""点の可視化
-Parameters
-----------
-filename : 保存するfilenameを指定できる
-view=(a, b) : どの角度で見るか
-area : area
-nb_point=(area, i, j) : 指定すれば，指定した点の周りの近傍を色付けして出力する
-r : 魚眼画像の円部分の半径である．
-"""
-a, b, area, i, j = (30, 30, 1, Q, 1)
-scatter3d(filename='hemi_%d_%d_%d_%d%d%d.png' % (r, a, b, area, i, j), view=(a, b), nb_point=(area, i, j), r=r_pic)
-scatter3d(filename='hemi_%d_%d_%d_%d%d%d.png' % (r, a, b, area, i, j), view=(a, b), nb_point=None, r=r_pic)
+    """これは実験的な，area1のみの分割に対応する
+    """
+    # tessellation(area=1, a=(0, 1), b=(Q, 1), c=(0, Q+1), d=(Q, Q+1), e=(0, 2*Q+1), f=(Q, 2*Q+1))
 
-"""球面上に配置した点の座標から，球面画像の作成
-"""
-pos_2d, pos_2d_coord = make_2d_array(pos_3d=pos, Q=Q)
-im = make_2d_picture(pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
-im_center = make_2d_round_picture(pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
-im_consider = make_2d_neighbor_considered_picture(pos_2d_coord=pos_2d_coord, pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
+    """点の可視化
+    Parameters
+    ----------
+    filename : 保存するfilenameを指定できる
+    view=(a, b) : どの角度で見るか
+    area : area
+    nb_point=(area, i, j) : 指定すれば，指定した点の周りの近傍を色付けして出力する
+    r : 魚眼画像の円部分の半径である．
+    """
+    a, b, area, i, j = (30, 30, 1, Q, 1)
+    # scatter3d(filename='hemi_%d_%d_%d_%d%d%d.png' % (r, a, b, area, i, j), view=(a, b), nb_point=(area, i, j), r=r_pic)
+    # scatter3d(filename='hemi_%d_%d_%d_%d%d%d.png' % (r, a, b, area, i, j), view=(a, b), nb_point=None, r=r_pic)
 
-plt.figure()
-plt.imshow(im_center)
-# plt.savefig(SAVE_DIR+"test_rounf.png")
-plt.show()
-plt.figure()
-plt.imshow(im_consider)
-# plt.savefig(SAVE_DIR+"test_rounf.png")
-plt.show()
+    """球面上に配置した点の座標から，球面画像の作成
+    """
+    pos_2d, pos_2d_coord = make_2d_array(pos_3d=pos, Q=Q)
+    # im = make_2d_picture(pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
+    # im_center = make_2d_round_picture(pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
+    im_consider = make_2d_neighbor_considered_picture(pos_2d_coord=pos_2d_coord, pos_2d=pos_2d, r_pic=r_pic, Q=Q, im_in=im_in)
 
-
-plt.figure()
-plt.imshow(im)
-plt.show()
-
-plt.figure()
-plt.imshow(im_in)
-plt.show()
-plt.clf()
-img_sphere[:, 1, 1, 1]
-
-
-
-###########################
-len(pos)
-neib_pos, neib_coord = find_neighbor(point=(1, 1, 2), coord=True)
-pos[1][1][2]
-neib_pos
-neib_coord
-im_ota = np.zeros((3, 3, 3), np.uint8)
-im_ota[1, 2, :] = img_sphere[:, 2, 2, 1]
-im_ota[2, 1, :] = img_sphere[:, 1, 1, 3]
-im_ota[2, 0, :] = img_sphere[:, 1, 2, 2]
-im_ota[1, 0, :] = img_sphere[:, 1, 2, 1]
-im_ota[0, 0, :] = img_sphere[:, 1, 1, 1]
-im_ota[0, 1, :] = img_sphere[:, 2, 1, 1]
-im_ota[1, 1, :] = img_sphere[:, 1, 1, 2]
-
-plt.clf()
-plt.figure()
-plt.imshow(im_ota)
-plt.show()
+    return im_consider
 
 
 
